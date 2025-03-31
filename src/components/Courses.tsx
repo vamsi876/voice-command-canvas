@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Book, Users, Clock, Search, Filter, Grid, List } from 'lucide-react';
+import { Book, Users, Clock, Search, Filter, Grid, List, FileText, MessageSquare, FolderOpen, Calendar, CheckCircle, ChevronRight } from 'lucide-react';
 import CourseModal from './CourseModal';
 
 export default function Courses() {
   const [selectedCourse, setSelectedCourse] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedModule, setSelectedModule] = useState<string | null>(null);
 
   const courses = [
     {
@@ -18,7 +19,26 @@ export default function Courses() {
       image: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60',
       tags: ['Computer Science', 'Programming'],
       resources: 12,
-      assignments: 8
+      assignments: 8,
+      modules: [
+        {
+          id: 'm1',
+          name: 'Module 1: Introduction to Programming',
+          items: [
+            { type: 'assignment', name: 'Programming Basics Quiz', dueDate: 'Mar 15, 2024', status: 'pending' },
+            { type: 'discussion', name: 'Programming Languages Discussion', dueDate: 'Mar 16, 2024', status: 'completed' },
+            { type: 'file', name: 'Lecture Notes - Week 1', dueDate: null, status: 'completed' }
+          ]
+        },
+        {
+          id: 'm2',
+          name: 'Module 2: Data Structures',
+          items: [
+            { type: 'assignment', name: 'Arrays and Lists Lab', dueDate: 'Mar 20, 2024', status: 'pending' },
+            { type: 'discussion', name: 'Data Structure Applications', dueDate: 'Mar 21, 2024', status: 'pending' }
+          ]
+        }
+      ]
     },
     {
       id: 2,
@@ -30,7 +50,17 @@ export default function Courses() {
       image: 'https://images.unsplash.com/photo-1547658719-da2b51169166?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60',
       tags: ['Web Development', 'Programming'],
       resources: 15,
-      assignments: 6
+      assignments: 6,
+      modules: [
+        {
+          id: 'm1',
+          name: 'Module 1: HTML & CSS Basics',
+          items: [
+            { type: 'assignment', name: 'Personal Portfolio Website', dueDate: 'Mar 18, 2024', status: 'pending' },
+            { type: 'discussion', name: 'CSS Frameworks Discussion', dueDate: 'Mar 19, 2024', status: 'completed' }
+          ]
+        }
+      ]
     },
     {
       id: 3,
@@ -42,7 +72,17 @@ export default function Courses() {
       image: 'https://images.unsplash.com/photo-1515879218367-8466d910aaa4?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60',
       tags: ['Computer Science', 'Algorithms'],
       resources: 18,
-      assignments: 10
+      assignments: 10,
+      modules: [
+        {
+          id: 'm1',
+          name: 'Module 1: Basic Data Structures',
+          items: [
+            { type: 'assignment', name: 'Linked List Implementation', dueDate: 'Mar 22, 2024', status: 'pending' },
+            { type: 'discussion', name: 'Algorithm Complexity Analysis', dueDate: 'Mar 23, 2024', status: 'pending' }
+          ]
+        }
+      ]
     }
   ];
 
@@ -51,6 +91,19 @@ export default function Courses() {
     course.instructor.toLowerCase().includes(searchQuery.toLowerCase()) ||
     course.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  const getItemIcon = (type: string) => {
+    switch (type) {
+      case 'assignment':
+        return <FileText className="h-4 w-4" />;
+      case 'discussion':
+        return <MessageSquare className="h-4 w-4" />;
+      case 'file':
+        return <FolderOpen className="h-4 w-4" />;
+      default:
+        return <FileText className="h-4 w-4" />;
+    }
+  };
 
   return (
     <div className="space-y-6">

@@ -1,11 +1,42 @@
 import React from 'react';
-import { BookOpen, Clock, Calendar, Bell, TrendingUp, Award } from 'lucide-react';
+import { BookOpen, Clock, Calendar, Bell, TrendingUp, Award, ChevronRight } from 'lucide-react';
 
-export default function Dashboard() {
+interface DashboardProps {
+  onNavigate: (tab: string) => void;
+}
+
+export default function Dashboard({ onNavigate }: DashboardProps) {
   const courseGrades = [
     { course: 'Computer Science', grade: 'A', percentage: 92 },
     { course: 'Web Development', grade: 'A-', percentage: 89 },
     { course: 'Mathematics', grade: 'B+', percentage: 87 }
+  ];
+
+  const activeCourses = [
+    {
+      id: 1,
+      name: 'Introduction to Computer Science',
+      instructor: 'Dr. Sarah Johnson',
+      progress: 75,
+      nextClass: 'Tomorrow, 10:00 AM',
+      image: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60'
+    },
+    {
+      id: 2,
+      name: 'Web Development Fundamentals',
+      instructor: 'Prof. Michael Chen',
+      progress: 60,
+      nextClass: 'Today, 2:00 PM',
+      image: 'https://images.unsplash.com/photo-1547658719-da2b51169166?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60'
+    },
+    {
+      id: 3,
+      name: 'Data Structures and Algorithms',
+      instructor: 'Dr. Emily Williams',
+      progress: 40,
+      nextClass: 'Thursday, 11:30 AM',
+      image: 'https://images.unsplash.com/photo-1515879218367-8466d910aaa4?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60'
+    }
   ];
 
   return (
@@ -70,22 +101,43 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <h2 className="text-lg font-semibold mb-4">Course Performance</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Active Courses</h2>
+            <button
+              onClick={() => onNavigate('courses')}
+              className="text-sm text-blue-600 hover:text-blue-700 flex items-center space-x-1"
+            >
+              <span>View All</span>
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
           <div className="space-y-4">
-            {courseGrades.map((course, index) => (
-              <div key={index} className="flex items-center justify-between">
+            {activeCourses.map(course => (
+              <div
+                key={course.id}
+                onClick={() => onNavigate('courses')}
+                className="flex items-center space-x-4 p-4 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+              >
+                <img
+                  src={course.image}
+                  alt={course.name}
+                  className="h-16 w-16 object-cover rounded-lg"
+                />
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">{course.course}</p>
-                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full"
-                      style={{ width: `${course.percentage}%` }}
-                    />
+                  <h3 className="font-medium text-gray-900">{course.name}</h3>
+                  <p className="text-sm text-gray-600">{course.instructor}</p>
+                  <div className="mt-2 space-y-2">
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-blue-600 h-2 rounded-full"
+                        style={{ width: `${course.progress}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">{course.progress}% Complete</span>
+                      <span className="text-gray-600">{course.nextClass}</span>
+                    </div>
                   </div>
-                </div>
-                <div className="ml-4 flex items-center space-x-2">
-                  <span className="text-sm text-gray-600">{course.percentage}%</span>
-                  <span className="text-sm font-semibold text-blue-600">{course.grade}</span>
                 </div>
               </div>
             ))}
