@@ -10,7 +10,8 @@ const MONTHS = [
 interface Event {
   id: number;
   title: string;
-  time: string;
+  startTime: string;
+  endTime: string;
   location: string;
   type: 'lecture' | 'lab' | 'meeting' | 'assignment' | 'exam';
   date: Date;
@@ -29,7 +30,8 @@ interface EventModalProps {
 function EventModal({ isOpen, onClose, onSave, event, selectedDate }: EventModalProps) {
   const [formData, setFormData] = useState({
     title: '',
-    time: '',
+    startTime: '09:00',
+    endTime: '10:00',
     location: '',
     type: 'lecture' as Event['type'],
     description: '',
@@ -39,9 +41,18 @@ function EventModal({ isOpen, onClose, onSave, event, selectedDate }: EventModal
 
   useEffect(() => {
     if (event) {
+      // Parse existing time format "10:00 AM - 11:30 AM" to separate start/end times
+      const timeParts = event.startTime.includes(' - ') 
+        ? event.startTime.split(' - ')
+        : [event.startTime, event.endTime || ''];
+      
+      const startTime24 = convertTo24Hour(timeParts[0] || '09:00 AM');
+      const endTime24 = convertTo24Hour(timeParts[1] || '10:00 AM');
+
       setFormData({
         title: event.title,
-        time: event.time,
+        startTime: startTime24,
+        endTime: endTime24,
         location: event.location,
         type: event.type,
         description: event.description || '',
@@ -49,17 +60,68 @@ function EventModal({ isOpen, onClose, onSave, event, selectedDate }: EventModal
         date: event.date
       });
     } else if (selectedDate) {
-      setFormData(prev => ({ ...prev, date: selectedDate }));
+      setFormData(prev => ({ 
+        ...prev, 
+        date: selectedDate,
+        startTime: '09:00',
+        endTime: '10:00'
+      }));
     }
   }, [event, selectedDate]);
 
+  const convertTo24Hour = (time12h: string): string => {
+    const [time, modifier] = time12h.split(' ');
+    let [hours, minutes] = time.split(':');
+    if (hours === '12') {
+      hours = '00';
+    }
+    if (modifier === 'PM') {
+      hours = String(parseInt(hours, 10) + 12);
+    }
+    return `${hours.padStart(2, '0')}:${minutes}`;
+  };
+
+  const convertTo12Hour = (time24h: string): string => {
+    const [hours, minutes] = time24h.split(':');
+    const hour = parseInt(hours, 10);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
+  const formatDateForInput = (date: Date): string => {
+    return date.toISOString().split('T')[0];
+  };
+
+  const handleDateChange = (dateString: string) => {
+    const newDate = new Date(dateString);
+    setFormData(prev => ({ ...prev, date: newDate }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    
+    // Validate that end time is after start time
+    const startMinutes = parseInt(formData.startTime.split(':')[0]) * 60 + parseInt(formData.startTime.split(':')[1]);
+    const endMinutes = parseInt(formData.endTime.split(':')[0]) * 60 + parseInt(formData.endTime.split(':')[1]);
+    
+    if (endMinutes <= startMinutes) {
+      alert('End time must be after start time');
+      return;
+    }
+
+    const eventData = {
+      ...formData,
+      startTime: `${convertTo12Hour(formData.startTime)} - ${convertTo12Hour(formData.endTime)}`,
+      endTime: convertTo12Hour(formData.endTime)
+    };
+
+    onSave(eventData);
     onClose();
     setFormData({
       title: '',
-      time: '',
+      startTime: '09:00',
+      endTime: '10:00',
       location: '',
       type: 'lecture',
       description: '',
@@ -68,18 +130,33 @@ function EventModal({ isOpen, onClose, onSave, event, selectedDate }: EventModal
     });
   };
 
+  // Generate time options for dropdowns
+  const generateTimeOptions = () => {
+    const options = [];
+    for (let hour = 0; hour < 24; hour++) {
+      for (let minute = 0; minute < 60; minute += 15) {
+        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        const displayTime = convertTo12Hour(timeString);
+        options.push({ value: timeString, label: displayTime });
+      }
+    }
+    return options;
+  };
+
+  const timeOptions = generateTimeOptions();
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+      <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">
             {event ? 'Edit Event' : 'Add New Event'}
           </h3>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
@@ -88,86 +165,122 @@ function EventModal({ isOpen, onClose, onSave, event, selectedDate }: EventModal
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Event Title
+              Event Title *
             </label>
             <input
               type="text"
               required
               value={formData.title}
               onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter event title"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Date *
+            </label>
+            <input
+              type="date"
+              required
+              value={formatDateForInput(formData.date)}
+              onChange={(e) => handleDateChange(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Time
+                Start Time *
               </label>
-              <input
-                type="text"
+              <select
                 required
-                value={formData.time}
-                onChange={(e) => setFormData(prev => ({ ...prev, time: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="10:00 AM - 11:30 AM"
-              />
+                value={formData.startTime}
+                onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {timeOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Type
+                End Time *
               </label>
               <select
-                value={formData.type}
-                onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value as Event['type'] }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+                value={formData.endTime}
+                onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="lecture">Lecture</option>
-                <option value="lab">Lab</option>
-                <option value="meeting">Meeting</option>
-                <option value="assignment">Assignment</option>
-                <option value="exam">Exam</option>
+                {timeOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Location
+              Event Type *
+            </label>
+            <select
+              required
+              value={formData.type}
+              onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value as Event['type'] }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="lecture">📚 Lecture</option>
+              <option value="lab">🔬 Lab</option>
+              <option value="meeting">👥 Meeting</option>
+              <option value="assignment">📝 Assignment</option>
+              <option value="exam">📋 Exam</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Location *
             </label>
             <input
               type="text"
               required
               value={formData.location}
               onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Room 301, Online, etc."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Room 301, Online, Library, etc."
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Course (Optional)
+              Course
             </label>
             <input
               type="text"
               value={formData.course}
               onChange={(e) => setFormData(prev => ({ ...prev, course: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Computer Science 101"
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Description (Optional)
+              Description
             </label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               rows={3}
               placeholder="Additional details about the event"
             />
@@ -177,13 +290,13 @@ function EventModal({ isOpen, onClose, onSave, event, selectedDate }: EventModal
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               {event ? 'Update Event' : 'Add Event'}
             </button>
@@ -203,7 +316,8 @@ export default function Calendar() {
     {
       id: 1,
       title: 'Computer Science Lecture',
-      time: '10:00 AM - 11:30 AM',
+      startTime: '10:00 AM - 11:30 AM',
+      endTime: '11:30 AM',
       location: 'Room 301',
       type: 'lecture',
       course: 'CS 101',
@@ -213,7 +327,8 @@ export default function Calendar() {
     {
       id: 2,
       title: 'Web Development Lab',
-      time: '2:00 PM - 3:30 PM',
+      startTime: '2:00 PM - 3:30 PM',
+      endTime: '3:30 PM',
       location: 'Computer Lab B',
       type: 'lab',
       course: 'Web Dev 201',
@@ -223,7 +338,8 @@ export default function Calendar() {
     {
       id: 3,
       title: 'Group Project Meeting',
-      time: '4:00 PM - 5:00 PM',
+      startTime: '4:00 PM - 5:00 PM',
+      endTime: '5:00 PM',
       location: 'Study Room 2',
       type: 'meeting',
       course: 'Business Ethics',
@@ -233,7 +349,8 @@ export default function Calendar() {
     {
       id: 4,
       title: 'Midterm Exam',
-      time: '9:00 AM - 11:00 AM',
+      startTime: '9:00 AM - 11:00 AM',
+      endTime: '11:00 AM',
       location: 'Main Hall',
       type: 'exam',
       course: 'Mathematics 101',
@@ -302,7 +419,9 @@ export default function Calendar() {
   };
 
   const handleDeleteEvent = (eventId: number) => {
-    setEvents(prev => prev.filter(event => event.id !== eventId));
+    if (confirm('Are you sure you want to delete this event?')) {
+      setEvents(prev => prev.filter(event => event.id !== eventId));
+    }
   };
 
   const handleSaveEvent = (eventData: Omit<Event, 'id'>) => {
@@ -338,6 +457,23 @@ export default function Calendar() {
     }
   };
 
+  const getEventTypeEmoji = (type: Event['type']) => {
+    switch (type) {
+      case 'lecture':
+        return '📚';
+      case 'lab':
+        return '🔬';
+      case 'meeting':
+        return '👥';
+      case 'assignment':
+        return '📝';
+      case 'exam':
+        return '📋';
+      default:
+        return '📅';
+    }
+  };
+
   const renderCalendarDays = () => {
     const daysInMonth = getDaysInMonth(currentDate);
     const firstDay = getFirstDayOfMonth(currentDate);
@@ -357,13 +493,13 @@ export default function Calendar() {
         <div
           key={day}
           onClick={() => handleDateClick(day)}
-          className={`aspect-square p-2 relative cursor-pointer transition-colors ${
+          className={`aspect-square p-2 relative cursor-pointer transition-all duration-200 ${
             isCurrentDay
-              ? 'bg-blue-50 text-blue-600 border-blue-200'
+              ? 'bg-blue-50 text-blue-600 border-blue-200 ring-2 ring-blue-200'
               : dayEvents.length > 0
               ? 'bg-gray-50 hover:bg-gray-100'
               : 'bg-white hover:bg-gray-50'
-          } border border-gray-100`}
+          } border border-gray-100 hover:shadow-sm`}
         >
           <span className={`text-sm ${isCurrentDay ? 'font-semibold' : ''}`}>
             {day}
@@ -374,11 +510,17 @@ export default function Calendar() {
                 {dayEvents.slice(0, 2).map((event, index) => (
                   <div
                     key={index}
-                    className="h-1 flex-1 rounded-full bg-blue-600"
+                    className={`h-1 flex-1 rounded-full ${
+                      event.type === 'lecture' ? 'bg-blue-500' :
+                      event.type === 'lab' ? 'bg-green-500' :
+                      event.type === 'meeting' ? 'bg-purple-500' :
+                      event.type === 'assignment' ? 'bg-yellow-500' :
+                      event.type === 'exam' ? 'bg-red-500' : 'bg-gray-500'
+                    }`}
                   />
                 ))}
                 {dayEvents.length > 2 && (
-                  <div className="text-xs text-gray-500">+{dayEvents.length - 2}</div>
+                  <div className="text-xs text-gray-500 font-medium">+{dayEvents.length - 2}</div>
                 )}
               </div>
             </div>
@@ -396,7 +538,7 @@ export default function Calendar() {
         <h1 className="text-2xl font-bold text-gray-900">Calendar</h1>
         <button
           onClick={handleAddEvent}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
         >
           <Plus className="h-5 w-5" />
           <span>Add Event</span>
@@ -415,6 +557,12 @@ export default function Calendar() {
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => setCurrentDate(new Date())}
+                className="px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+              >
+                Today
               </button>
               <button
                 onClick={nextMonth}
@@ -448,17 +596,20 @@ export default function Calendar() {
                   className={`p-4 rounded-lg border space-y-2 ${getEventTypeColor(event.type)}`}
                 >
                   <div className="flex items-start justify-between">
-                    <h3 className="font-medium">{event.title}</h3>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-lg">{getEventTypeEmoji(event.type)}</span>
+                      <h3 className="font-medium">{event.title}</h3>
+                    </div>
                     <div className="flex items-center space-x-1">
                       <button
                         onClick={() => handleEditEvent(event)}
-                        className="p-1 hover:bg-white hover:bg-opacity-50 rounded"
+                        className="p-1 hover:bg-white hover:bg-opacity-50 rounded transition-colors"
                       >
                         <Edit className="h-3 w-3" />
                       </button>
                       <button
                         onClick={() => handleDeleteEvent(event.id)}
-                        className="p-1 hover:bg-white hover:bg-opacity-50 rounded"
+                        className="p-1 hover:bg-white hover:bg-opacity-50 rounded transition-colors"
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -466,7 +617,7 @@ export default function Calendar() {
                   </div>
                   <div className="flex items-center space-x-2 text-sm">
                     <Clock className="h-4 w-4" />
-                    <span>{event.time}</span>
+                    <span>{event.startTime}</span>
                   </div>
                   <div className="flex items-center space-x-2 text-sm">
                     <MapPin className="h-4 w-4" />
@@ -480,7 +631,15 @@ export default function Calendar() {
                 </div>
               ))}
               {getEventsForToday().length === 0 && (
-                <p className="text-sm text-gray-600">No events scheduled for today</p>
+                <div className="text-center py-8">
+                  <p className="text-sm text-gray-600 mb-4">No events scheduled for today</p>
+                  <button
+                    onClick={handleAddEvent}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm transition-colors"
+                  >
+                    Add Event
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -501,17 +660,20 @@ export default function Calendar() {
                     className={`p-4 rounded-lg border space-y-2 ${getEventTypeColor(event.type)}`}
                   >
                     <div className="flex items-start justify-between">
-                      <h3 className="font-medium">{event.title}</h3>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-lg">{getEventTypeEmoji(event.type)}</span>
+                        <h3 className="font-medium">{event.title}</h3>
+                      </div>
                       <div className="flex items-center space-x-1">
                         <button
                           onClick={() => handleEditEvent(event)}
-                          className="p-1 hover:bg-white hover:bg-opacity-50 rounded"
+                          className="p-1 hover:bg-white hover:bg-opacity-50 rounded transition-colors"
                         >
                           <Edit className="h-3 w-3" />
                         </button>
                         <button
                           onClick={() => handleDeleteEvent(event.id)}
-                          className="p-1 hover:bg-white hover:bg-opacity-50 rounded"
+                          className="p-1 hover:bg-white hover:bg-opacity-50 rounded transition-colors"
                         >
                           <Trash2 className="h-3 w-3" />
                         </button>
@@ -519,7 +681,7 @@ export default function Calendar() {
                     </div>
                     <div className="flex items-center space-x-2 text-sm">
                       <Clock className="h-4 w-4" />
-                      <span>{event.time}</span>
+                      <span>{event.startTime}</span>
                     </div>
                     <div className="flex items-center space-x-2 text-sm">
                       <MapPin className="h-4 w-4" />
@@ -543,7 +705,7 @@ export default function Calendar() {
                         setSelectedDate(selectedDate);
                         handleAddEvent();
                       }}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm transition-colors"
                     >
                       Add Event
                     </button>
